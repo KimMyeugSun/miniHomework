@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>plave</title>
+  </head>
+  <body>
+    <main>
+      <table class="selectList">
+        <thead>
+          <tr>
+            <th>순서</th>
+            <th>노래제목</th>
+            <th>멤버</th>
+          </tr>
+        </thead>
+      </table>
+      <div class="selectOne">
+        <form>
+          <input type="text" name="title" placeholder="노래제목" />
+          <input type="text" name="member" placeholder="멤버" />
+          <button type="button" onclick="addSong()">플레이리스트 추가</button>
+          <button type="button" onclick="updateSong()">
+            플레이리스트 수정
+          </button>
+          <button type="button" onclick="deleteSong()">
+            플레이리스트 삭제
+          </button>
+        </form>
+      </div>
+    </main>
+  </body>
+</html>
