@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PLAVE Cover Manager</title>
+    <style>
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+      }
+      #detailModal {
+        display: none;
+        position: fixed;
+        top: 20%;
+        left: 30%;
+        background: white;
+        padding: 20px;
+        border: 1px solid black;
+        z-index: 1000;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <table class="selectList"></table>
+      <hr />
+      <div class="search">
+        <form>
+          <input
+            type="text"
+            id="searchKeyword"
+            placeholder="노래 제목 + 가수명으로 검색하기"
+          />
+          <button type="button" onclick="searchYoutube()">검색</button>
+        </form>
+        <div id="searchResults"></div>
+      </div>
+      <hr />
+    </main>
+
+    <div id="detailModal">
+      <h3>곡 상세정보</h3>
+      <p><strong>제목:</strong> <span id="modal-title"></span></p>
+      <p><strong>멤버:</strong> <span id="modal-member"></span></p>
+        <strong>YouTube URL:</strong>
+        <a id="modal-youtube-url" href="#" target="_blank">링크</a>
+      </p>
+      <p><strong>썸네일:</strong></p>
+      <img
+        id="modal-thumbnail"
+        src=""
+        width="300"
+        style="border: 1px solid #ccc"
+      />
+      <br />
+      <button onclick="submitUpdate()">수정</button>
+      <button onclick="submitDelete()">삭제</button>
+      <button onclick="closeModal()">닫기</button>
+    </div>
+
+    <script>
+      let memberMap = new Map();
+
+      function loadMembers() {
+        return fetch('http://127.0.0.1:8080/api/plave/member')
+          .then((res) => res.json())
+          .then((data) => {
+            data.forEach((m) => memberMap.set(m.no, m.name));
+            console.log('memberMap:', memberMap);
+          });
+      }
+
+      function extractMemberName(title) {
+        for (let name of memberMap.values()) {
+          if (title.includes(name)) return name;
+        }
+        return '전체';
+      }
+      function searchYoutube() {
+        const keyword = document.getElementById('searchKeyword').value;
+        const query = `intitle:${keyword}`;
+        fetch(
+          `http://127.0.0.1:8080/youtube?query=${encodeURIComponent(query)}`
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '';
+            data.items.forEach((item) => {
+              const title = item.snippet.title;
+              const member = extractMemberName(title);
+              const youtubeUrl = `https://www.youtube.com/watch?v=${item.id.videoId}`;
+              const thumbnailUrl = item.snippet.thumbnails.default.url;
+              const innerHTMLTag = document.createElement('div');
+              const strongTag = document.createElement('strong');
+              const memberTag = document.createElement('span');
+              const imgTag = document.createElement('img');
+              const buttonTag = document.createElement('button');
+              const brTag = document.createElement('br');
+              strongTag.innerHTML = title;
+              memberTag.innerHTML = `(${member})`;
+              imgTag.src = thumbnailUrl;
+              imgTag.width = 100;
+              buttonTag.innerHTML = '리스트에 추가하기';
+              const no = memberMap.has(member)
+                ? Array.from(memberMap.keys()).find(
+                    (key) => memberMap.get(key) === member
+                  )
+                : 6;
+              buttonTag.onclick = () =>
+                addToList(member, title, thumbnailUrl, no, youtubeUrl);
+              innerHTMLTag.appendChild(imgTag);
+              innerHTMLTag.appendChild(strongTag);
+              innerHTMLTag.appendChild(memberTag);
+              innerHTMLTag.appendChild(brTag);
+              innerHTMLTag.appendChild(buttonTag);
+              innerHTMLTag.appendChild(brTag);
+              resultsDiv.appendChild(innerHTMLTag);
+            });
+            console.log('ok');
+          });
+      }
+
+      function addToList(member, title, thumbnailUrl, no, youtubeUrl) {
+        console.log('addToList', member, title, thumbnailUrl, no, youtubeUrl);
+        fetch('http://127.0.0.1:8080/api/plave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, no, thumbnailUrl, youtubeUrl }),
+        }).then(() => loadPlaylist());
+      }
+
+      function loadPlaylist() {
+        fetch('http://127.0.0.1:8080/api/plave')
+          .then((res) => res.json())
+          .then((data) => {
+            const table = document.querySelector('.selectList');
+            table.innerHTML = `
+              <thead><tr><th>순서</th><th>노래제목</th><th>멤버</th></tr></thead>
+            `;
+            data.forEach((item, index) => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${item.coverNo}</td>
+                <td>${item.title}</td>
+                <td>${extractMemberName(title)}</td>
+              `;
+              tr.style.cursor = 'pointer';
+              tr.addEventListener('click', () => {
+                log('click', item.coverNo);
+                openDetailModal(item.coverNo)});
+              table.appendChild(tr);
+            });
+          });
+      }
+
+      function openDetailModal(coverNo) {
+        console.log('openModal');
+        
+        fetch(`http://127.0.0.1:8080/api/plave/${coverNo}`)
+          .then((res) => res.json())
+          .then((data) => {
+            document.getElementById('modal-title').textContent = data.title;
+            document.getElementById('modal-member').textContent = data.no;
+            document.getElementById('modal-youtube-url').href = data.youtubeUrl;
+            document.getElementById('modal-thumbnail').src = data.thumbnailUrl;
+            document.getElementById('detailModal').style.display = 'block';
+          });
+      }
+
+      function closeModal() {
+        document.getElementById('detailModal').style.display = 'none';
+      }
+
+      function submitUpdate() {
+        const payload = {
+          coverNo: currentCoverNo,
+          title: document.getElementById('modal-title').textContent,
+          youtubeUrl: document.getElementById('modal-youtube-url').href,
+          thumbnailUrl: document.getElementById('modal-thumbnail').src,
+        };
+        fetch('http://127.0.0.1:8080/api/plave', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(() => {
+          closeModal();
+          loadPlaylist();
+        });
+      }
+
+      function submitDelete() {
+        if (!confirm('정말 삭제할까요?')) return;
+        fetch('http://127.0.0.1:8080/api/plave', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coverNo: currentCoverNo }),
+        }).then(() => {
+          closeModal();
+          loadPlaylist();
+        });
+      }
+
+      window.onload = async () => {
+        await loadMembers();
+        loadPlaylist();
+      };
+    </script>
+  </body>
+</html>
